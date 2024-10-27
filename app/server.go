@@ -23,9 +23,19 @@ func main() {
 
   defer conn.Close()
 
-  conn.Read(make([]byte, 1024))
+  buf := make([]byte, 1024)
 
-  conn.Write([]byte{0,0,0,0,0,0,0,7})
+  _, err = conn.Read(buf)
+
+  if err != nil {
+    fmt.Println("Error while reading from connection: ", err.Error())
+    os.Exit(1)
+  }
+
+
+  _, headers, _, err := ParseRequest(buf)
+
   
+  conn.Write(Response(0, headers.corr_id))
 
 }
