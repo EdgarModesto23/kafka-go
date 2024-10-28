@@ -32,10 +32,12 @@ func main() {
     os.Exit(1)
   }
 
-
-  _, headers, _, err := ParseRequest(buf)
-
+  _, headers, _, err_code := ParseRequest(buf)
+  if err_code != 0 {
+    conn.Write(Response(0, headers.corr_id, int32(err_code)))
+    return
+  }
   
-  conn.Write(Response(0, headers.corr_id))
+  conn.Write(Response(0, headers.corr_id, 0))
 
 }
