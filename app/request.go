@@ -5,6 +5,12 @@ import (
 	"encoding/binary"
 )
 
+type Request struct {
+	size    Size
+	headers Headers
+	body    Body
+}
+
 type Headers struct {
 	api_key     int16
 	api_version int16
@@ -16,57 +22,64 @@ type Size int32
 
 type Body []byte
 
+func GetHandler(r Request) Handler {
+	switch r.headers.api_key {
+	case 18:
+		return &APIVersions{request: r}
+	default:
+		return &ErrorHandler{request: r, error_code: 115}
+	}
+}
+
 func byteSliceToInt[T any](data T, bslice []byte, start int, end int) error {
-  err := binary.Read(bytes.NewReader(bslice[start:end]), binary.BigEndian, data)
-  if err != nil {
-    return err
-  }
-  return nil
+	err := binary.Read(bytes.NewReader(bslice[start:end]), binary.BigEndian, data)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func checkVersion(v int16) bool {
-  if v < 0 || v > 4 {
-    return false
-  }
-  return true
+	if v < 0 || v > 4 {
+		return false
+	}
+	return true
 }
 
-func ParseRequest(r []byte) (Size, *Headers, Body, int) {
+func ParseRequest(r []byte) (*Request, int) {
+	if len(r) < 12 {
+		return nil, 5
+	}
 
-  if (len(r) < 12) {
-    return 0, nil, nil, 5
-  }
+	var rsize Size
+	// get size of request
+	err := byteSliceToInt(&rsize, r, 0, 4)
+	if err != nil {
+		return nil, -1
+	}
 
-  var rsize Size
-  //get size of request
-  err := byteSliceToInt(&rsize, r, 0, 4)
-  if err != nil {
-    return 0, nil, nil, 500
-  }
+	rheaders := Headers{}
 
-  rheaders := Headers{}
+	// parse request's api_key
+	err = byteSliceToInt(&rheaders.api_key, r, 4, 6)
+	if err != nil {
+		return nil, -1
+	}
+	// parse api_version
+	err = byteSliceToInt(&rheaders.api_version, r, 6, 8)
+	if err != nil {
+		return nil, -1
+	}
 
-  // parse request's api_key
-  err = byteSliceToInt(&rheaders.api_key, r, 4, 6)
-  if err != nil {
-    return 0, nil, nil, 500
-  }
-  // parse api_version
-  err = byteSliceToInt(&rheaders.api_version, r, 6, 8)
-  if err != nil {
-    return 0, nil, nil, 500
-  }
-  
-  // parse correlation id
-  err = byteSliceToInt(&rheaders.corr_id, r, 8, 12)
-  if err != nil {
-    return 0, nil, nil, 500
-  }
+	// parse correlation id
+	err = byteSliceToInt(&rheaders.corr_id, r, 8, 12)
+	if err != nil {
+		return nil, -1
+	}
 
+	if !checkVersion(rheaders.api_version) {
+		return &Request{headers: rheaders, body: Body{}, size: 0}, 35
+	}
 
-  if !checkVersion(rheaders.api_version) {
-    return 0, &rheaders, Body{}, 35
-  }
-
-  return 0, &rheaders, Body{}, 0
-} 
+	return &Request{headers: rheaders, body: Body{}, size: 0}, 0
+}
