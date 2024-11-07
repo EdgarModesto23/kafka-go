@@ -3,6 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 )
 
 type Request struct {
@@ -26,8 +30,8 @@ func GetHandler(r Request) Handler {
 	switch r.headers.api_key {
 	case 18:
 		return &APIVersions{request: r}
-  case 75:
-    return &ListPartitions{request: r}
+	case 75:
+		return &ListPartitions{request: r}
 	default:
 		return &ErrorHandler{request: r, error_code: 115}
 	}
@@ -79,9 +83,26 @@ func ParseRequest(r []byte) (*Request, int) {
 		return nil, -1
 	}
 
+	var lenClientID int16
+	err = byteSliceToInt(&lenClientID, r, 12, 14)
+	if err != nil {
+		return nil, -1
+	}
+
+	decoder := charmap.ISO8859_1.NewDecoder()
+
+	utf8Data, _, err := transform.Bytes(decoder, r[14:14+lenClientID])
+  if err != nil {
+    return nil, -1
+  }
+
+	rheaders.client_id = string(utf8Data)
+
+  fmt.Println(string(utf8Data))
+
 	if !checkVersion(rheaders.api_version) {
 		return &Request{headers: rheaders, body: Body{}, size: 0}, 35
 	}
 
-	return &Request{headers: rheaders, body: Body{}, size: 0}, 0
+	return &Request{headers: rheaders, body: Body(r[14+lenClientID:]), size: 0}, 0
 }

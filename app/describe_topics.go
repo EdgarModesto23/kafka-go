@@ -4,6 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+
+	"golang.org/x/text/encoding/charmap"
+	_ "golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
+	_ "golang.org/x/text/transform"
 )
 
 type ListPartitions struct {
@@ -12,45 +17,61 @@ type ListPartitions struct {
 
 func getTopicData(buf *bytes.Buffer, topic string) {
 	buf.Write(binary.BigEndian.AppendUint16([]byte{}, uint16(3)))
+	buf.WriteByte(byte(len(topic) + 1))
+	buf.Write([]byte(topic))
+	buf.Write([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+	buf.WriteByte(byte(0))
+	buf.WriteByte(byte(1))
+	buf.Write(binary.BigEndian.AppendUint32([]byte{}, uint32(0x00000df8)))
+	buf.WriteByte(byte(0))
+
+	// cursor
+	buf.WriteByte(byte(0xff))
+
+	// tag buffer
+	buf.WriteByte(byte(0))
 }
 
 func getTopicsFromRequest(b Body) []string {
-	// read first 4 bytes for n of topics
-  res := []string{}
+	res := []string{}
+	decoder := charmap.ISO8859_1.NewDecoder()
 
-  n_topics := binary.BigEndian.Uint32(b[:5])
+	// Transform the byte slice and decode it into UTF-8
 
-  topics := b[5:n_topics + 1]
+	// Return the result as a string
 
-  offset := 0
+	// read n of topics
+	n_topics := int32(b[1]) - 1
 
-  for i := 0; i < int(n_topics); i++ {
-    slen, _, _ := ParseUnsignedVarint(topics[offset:])
-    topic := string(topics[offset:slen + 1])
-    fmt.Println(topic)
-  }
+	offset := 1
+
+	for i := 0; i < int(n_topics); i++ {
+		slen := int(b[offset+1])
+		fmt.Println(slen)
+		utf8Data, _, _ := transform.Bytes(decoder, b[offset+2:slen+2])
+		res = append(res, string(utf8Data))
+	}
 
 	return res
 }
 
-func addThrottle(b *bytes.Buffer){
-	b.Write([]byte{0, 0, 0, 0})
+func addThrottle(b *bytes.Buffer) {
+	b.Write([]byte{0, 0, 0})
 }
 
 func (h *ListPartitions) Execute() Response {
 	buf := new(bytes.Buffer)
 
-	getTopicsFromRequest(h.request.body)
-  
-  addThrottle(buf)
+	topics := getTopicsFromRequest(h.request.body)
 
-	getTopicData(buf, "")
+	addThrottle(buf)
 
-	// cursor
-	buf.WriteByte(byte(0))
+	// arr len
+	buf.WriteByte(byte(len(topics) + 1))
 
-	// tag buffer
-	buf.WriteByte(byte(0))
+	for _, v := range topics {
+		getTopicData(buf, v)
+	}
 
 	size := int32(len(buf.Bytes()) + 6)
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 )
 
 type Response struct {
@@ -30,11 +29,7 @@ func ResponseToByte(r Response) []byte {
 
 	herror := append(headers, error...)
 
-  fmt.Println(herror)
-
   res := append(herror, r.body...)
-
-  fmt.Println(res)
 
 	return res
 }
