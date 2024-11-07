@@ -26,6 +26,8 @@ func GetHandler(r Request) Handler {
 	switch r.headers.api_key {
 	case 18:
 		return &APIVersions{request: r}
+  case 75:
+    return &ListPartitions{request: r}
 	default:
 		return &ErrorHandler{request: r, error_code: 115}
 	}

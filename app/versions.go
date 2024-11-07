@@ -9,8 +9,8 @@ type APIVersions struct {
 	request Request
 }
 
-func writeAPIKeysSupportedNum(buf *bytes.Buffer){
-  buf.WriteByte(byte(3))
+func writeAPIKeysSupportedNum(buf *bytes.Buffer, n int){
+  buf.WriteByte(byte(n))
 }
 
 func supportApiKey18(buf *bytes.Buffer) error {
@@ -40,11 +40,8 @@ func supportApiKey75(buf *bytes.Buffer) error{
   return nil
 }
 
-func (h *APIVersions) Execute() Response {
-
-	buf := new(bytes.Buffer)
-
-  writeAPIKeysSupportedNum(buf)
+func writeSupportedAPIKeys(buf *bytes.Buffer) (int32, error) {
+  writeAPIKeysSupportedNum(buf,3)
 
   supportApiKey18(buf)
   supportApiKey75(buf)
@@ -52,7 +49,26 @@ func (h *APIVersions) Execute() Response {
   buf.Write([]byte{0,0,0,0})
   buf.WriteByte(byte(0))
 
-	size := int32(len(buf.Bytes()) + 6)
+  size := int32(len(buf.Bytes()) + 6)
+
+  return size, nil
+
+}
+
+func (h *APIVersions) Execute() Response {
+
+	buf := new(bytes.Buffer)
+
+  size, err := writeSupportedAPIKeys(buf)
+  if err != nil {
+    return Response{
+				corr_id:  h.request.headers.corr_id,
+				err_code: -1,
+				body:     []byte{},
+				length:   6,
+			}
+  }
+
 
 	return Response{
 		corr_id:  h.request.headers.corr_id,
